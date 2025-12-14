@@ -48,4 +48,4 @@ export const COLOR_DARK: Record<PicoColor, string> = {
 
 export const ADMIN_PASSWORD = "picopark8588";
 
-export const VOTING_DURATION = 10000; // 10 seconds in milliseconds
+export const VOTING_DURATION = 1000000; // 1000 seconds in milliseconds

@@ -1,15 +1,28 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
-import { GameState, Player, Round, Vote, PicoColor, VotingResults } from '@/lib/types';
-import { VOTING_DURATION, PICO_COLORS } from '@/lib/constants';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useEffect,
+  useCallback,
+} from "react";
+import {
+  GameState,
+  Player,
+  Round,
+  Vote,
+  PicoColor,
+  VotingResults,
+} from "@/lib/types";
+import { VOTING_DURATION, PICO_COLORS } from "@/lib/constants";
 import {
   createInitialPlayers,
   assignRandomColors,
   calculateVotingResults,
   shuffleArray,
-} from '@/lib/gameUtils';
-import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
+} from "@/lib/gameUtils";
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 
 interface GameContextState {
   gameState: GameState;
@@ -23,21 +36,29 @@ interface GameContextState {
 }
 
 type GameAction =
-  | { type: 'START_GAME' }
-  | { type: 'SET_PLAYERS'; players: Player[] }
-  | { type: 'START_ROUND'; activePlayers: string[]; colorAssignments: Record<string, PicoColor> }
-  | { type: 'CONFIRM_PLAYER'; playerId: string }
-  | { type: 'START_VOTING' }
-  | { type: 'SUBMIT_VOTE'; vote: Vote }
-  | { type: 'END_VOTING'; results: VotingResults }
-  | { type: 'SHOW_RESULTS' }
-  | { type: 'NEXT_ROUND'; newActivePlayers: string[]; newColorAssignments: Record<string, PicoColor> }
-  | { type: 'END_GAME' }
-  | { type: 'RESET_GAME' }
-  | { type: 'SET_SESSION_ID'; sessionId: string };
+  | { type: "START_GAME" }
+  | { type: "SET_PLAYERS"; players: Player[] }
+  | {
+      type: "START_ROUND";
+      activePlayers: string[];
+      colorAssignments: Record<string, PicoColor>;
+    }
+  | { type: "CONFIRM_PLAYER"; playerId: string }
+  | { type: "START_VOTING" }
+  | { type: "SUBMIT_VOTE"; vote: Vote }
+  | { type: "END_VOTING"; results: VotingResults }
+  | { type: "SHOW_RESULTS" }
+  | {
+      type: "NEXT_ROUND";
+      newActivePlayers: string[];
+      newColorAssignments: Record<string, PicoColor>;
+    }
+  | { type: "END_GAME" }
+  | { type: "RESET_GAME" }
+  | { type: "SET_SESSION_ID"; sessionId: string };
 
 const initialState: GameContextState = {
-  gameState: 'welcome',
+  gameState: "welcome",
   players: createInitialPlayers(),
   currentRound: 0,
   rounds: [],
@@ -47,14 +68,17 @@ const initialState: GameContextState = {
   sessionId: null,
 };
 
-function gameReducer(state: GameContextState, action: GameAction): GameContextState {
+function gameReducer(
+  state: GameContextState,
+  action: GameAction
+): GameContextState {
   switch (action.type) {
-    case 'START_GAME': {
+    case "START_GAME": {
       const shuffledPlayers = shuffleArray(state.players);
-      const activePlayerIds = shuffledPlayers.slice(0, 8).map(p => p.id);
+      const activePlayerIds = shuffledPlayers.slice(0, 8).map((p) => p.id);
       const colorAssignments = assignRandomColors(activePlayerIds);
 
-      const updatedPlayers = state.players.map(p => ({
+      const updatedPlayers = state.players.map((p) => ({
         ...p,
         isPlaying: activePlayerIds.includes(p.id),
         hasConfirmed: false,
@@ -64,7 +88,7 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       const newRound: Round = {
         number: 1,
         activePlayers: activePlayerIds,
-        sittingOut: shuffledPlayers.slice(8).map(p => p.id),
+        sittingOut: shuffledPlayers.slice(8).map((p) => p.id),
         votes: [],
         kickedPlayers: [],
         colorAssignments,
@@ -72,7 +96,7 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
 
       return {
         ...state,
-        gameState: 'playing',
+        gameState: "playing",
         players: updatedPlayers,
         currentRound: 1,
         rounds: [newRound],
@@ -81,28 +105,28 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       };
     }
 
-    case 'SET_PLAYERS':
+    case "SET_PLAYERS":
       return { ...state, players: action.players };
 
-    case 'CONFIRM_PLAYER': {
-      const updatedPlayers = state.players.map(p =>
+    case "CONFIRM_PLAYER": {
+      const updatedPlayers = state.players.map((p) =>
         p.id === action.playerId ? { ...p, hasConfirmed: true } : p
       );
       return { ...state, players: updatedPlayers };
     }
 
-    case 'START_VOTING': {
+    case "START_VOTING": {
       return {
         ...state,
-        gameState: 'voting',
+        gameState: "voting",
         votingEndTime: Date.now() + VOTING_DURATION,
         currentVotes: [],
       };
     }
 
-    case 'SUBMIT_VOTE': {
+    case "SUBMIT_VOTE": {
       // Prevent duplicate votes from same voter
-      if (state.currentVotes.some(v => v.voterId === action.vote.voterId)) {
+      if (state.currentVotes.some((v) => v.voterId === action.vote.voterId)) {
         return state;
       }
       return {
@@ -111,7 +135,7 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       };
     }
 
-    case 'END_VOTING': {
+    case "END_VOTING": {
       // Update rounds with votes and kicked players
       const currentRoundIndex = state.rounds.length - 1;
       const updatedRounds = [...state.rounds];
@@ -122,7 +146,7 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       };
 
       // Update player stats
-      const updatedPlayers = state.players.map(p => {
+      const updatedPlayers = state.players.map((p) => {
         const votesReceived = action.results.voteCounts[p.id] || 0;
         const wasKicked = action.results.kickedPlayers.includes(p.id);
         return {
@@ -135,7 +159,7 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
 
       return {
         ...state,
-        gameState: 'results',
+        gameState: "results",
         rounds: updatedRounds,
         players: updatedPlayers,
         votingResults: action.results,
@@ -143,8 +167,8 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       };
     }
 
-    case 'NEXT_ROUND': {
-      const updatedPlayers = state.players.map(p => ({
+    case "NEXT_ROUND": {
+      const updatedPlayers = state.players.map((p) => ({
         ...p,
         isPlaying: action.newActivePlayers.includes(p.id),
         hasConfirmed: false,
@@ -152,8 +176,8 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       }));
 
       const sittingOut = state.players
-        .filter(p => !action.newActivePlayers.includes(p.id))
-        .map(p => p.id);
+        .filter((p) => !action.newActivePlayers.includes(p.id))
+        .map((p) => p.id);
 
       const newRound: Round = {
         number: state.currentRound + 1,
@@ -166,7 +190,7 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
 
       return {
         ...state,
-        gameState: 'playing',
+        gameState: "playing",
         players: updatedPlayers,
         currentRound: state.currentRound + 1,
         rounds: [...state.rounds, newRound],
@@ -175,19 +199,19 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       };
     }
 
-    case 'END_GAME':
+    case "END_GAME":
       return {
         ...state,
-        gameState: 'gameover',
+        gameState: "gameover",
       };
 
-    case 'RESET_GAME':
+    case "RESET_GAME":
       return {
         ...initialState,
         players: createInitialPlayers(),
       };
 
-    case 'SET_SESSION_ID':
+    case "SET_SESSION_ID":
       return { ...state, sessionId: action.sessionId };
 
     default:
@@ -222,7 +246,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           const supabase = getSupabase();
           if (!supabase) return;
 
-          await supabase.from('game_sessions').upsert({
+          await supabase.from("game_sessions").upsert({
             id: state.sessionId,
             state: state.gameState,
             current_round: state.currentRound,
@@ -231,60 +255,71 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             updated_at: new Date().toISOString(),
           });
         } catch (error) {
-          console.error('Error saving session:', error);
+          console.error("Error saving session:", error);
         }
       };
       saveSession();
     }
-  }, [state.rounds, state.gameState, state.currentRound, state.players, state.sessionId]);
+  }, [
+    state.rounds,
+    state.gameState,
+    state.currentRound,
+    state.players,
+    state.sessionId,
+  ]);
 
   // Generate session ID on mount
   useEffect(() => {
-    const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    dispatch({ type: 'SET_SESSION_ID', sessionId });
+    const sessionId = `session-${Date.now()}-${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+    dispatch({ type: "SET_SESSION_ID", sessionId });
   }, []);
 
   const startGame = useCallback(() => {
-    dispatch({ type: 'START_GAME' });
+    dispatch({ type: "START_GAME" });
   }, []);
 
   const confirmPlayer = useCallback((playerId: string) => {
-    dispatch({ type: 'CONFIRM_PLAYER', playerId });
+    dispatch({ type: "CONFIRM_PLAYER", playerId });
   }, []);
 
   const startVoting = useCallback(() => {
-    dispatch({ type: 'START_VOTING' });
+    dispatch({ type: "START_VOTING" });
   }, []);
 
-  const submitVote = useCallback((voterId: string, targetId: string) => {
-    const vote: Vote = {
-      round: state.currentRound,
-      voterId,
-      targetId,
-      timestamp: Date.now(),
-    };
-    dispatch({ type: 'SUBMIT_VOTE', vote });
-  }, [state.currentRound]);
+  const submitVote = useCallback(
+    (voterId: string, targetId: string) => {
+      const vote: Vote = {
+        round: state.currentRound,
+        voterId,
+        targetId,
+        timestamp: Date.now(),
+      };
+      dispatch({ type: "SUBMIT_VOTE", vote });
+    },
+    [state.currentRound]
+  );
 
   const endVoting = useCallback(() => {
     const results = calculateVotingResults(state.currentVotes, state.players);
-    dispatch({ type: 'END_VOTING', results });
+    dispatch({ type: "END_VOTING", results });
   }, [state.currentVotes, state.players]);
 
   const nextRound = useCallback(() => {
     if (!state.votingResults) return;
 
     const { kickedPlayers } = state.votingResults;
-    const currentlyPlaying = state.players.filter(p => p.isPlaying);
-    const currentlySittingOut = state.players.filter(p => !p.isPlaying);
+    const currentlyPlaying = state.players.filter((p) => p.isPlaying);
+    const currentlySittingOut = state.players.filter((p) => !p.isPlaying);
 
     // Keep players who weren't kicked
     const remainingPlayers = currentlyPlaying
-      .filter(p => !kickedPlayers.includes(p.id))
-      .map(p => p.id);
+      .filter((p) => !kickedPlayers.includes(p.id))
+      .map((p) => p.id);
 
     // Add the two sitting out players
-    const newPlayers = currentlySittingOut.map(p => p.id);
+    const newPlayers = currentlySittingOut.map((p) => p.id);
 
     const newActivePlayers = [...remainingPlayers, ...newPlayers];
 
@@ -293,8 +328,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const usedColors: PicoColor[] = [];
 
     // Keep colors for remaining players
-    remainingPlayers.forEach(playerId => {
-      const player = state.players.find(p => p.id === playerId);
+    remainingPlayers.forEach((playerId) => {
+      const player = state.players.find((p) => p.id === playerId);
       if (player?.color) {
         newColorAssignments[playerId] = player.color;
         usedColors.push(player.color);
@@ -302,30 +337,28 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Assign available colors to new players
-    const availableColors = PICO_COLORS.filter(c => !usedColors.includes(c));
+    const availableColors = PICO_COLORS.filter((c) => !usedColors.includes(c));
     const shuffledAvailable = shuffleArray(availableColors);
 
     newPlayers.forEach((playerId, index) => {
       newColorAssignments[playerId] = shuffledAvailable[index];
     });
 
-    dispatch({ type: 'NEXT_ROUND', newActivePlayers, newColorAssignments });
+    dispatch({ type: "NEXT_ROUND", newActivePlayers, newColorAssignments });
   }, [state.votingResults, state.players]);
 
   const endGame = useCallback(() => {
-    dispatch({ type: 'END_GAME' });
+    dispatch({ type: "END_GAME" });
   }, []);
 
   const resetGame = useCallback(() => {
-    dispatch({ type: 'RESET_GAME' });
+    dispatch({ type: "RESET_GAME" });
   }, []);
 
-  const allPlayersConfirmed = state.players
-    .filter(p => p.isPlaying)
-    .every(p => p.hasConfirmed);
+  const allPlayersConfirmed = true;
 
-  const activePlayers = state.players.filter(p => p.isPlaying);
-  const sittingOutPlayers = state.players.filter(p => !p.isPlaying);
+  const activePlayers = state.players.filter((p) => p.isPlaying);
+  const sittingOutPlayers = state.players.filter((p) => !p.isPlaying);
 
   return (
     <GameContext.Provider
@@ -352,7 +385,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 export function useGame() {
   const context = useContext(GameContext);
   if (!context) {
-    throw new Error('useGame must be used within a GameProvider');
+    throw new Error("useGame must be used within a GameProvider");
   }
   return context;
 }
